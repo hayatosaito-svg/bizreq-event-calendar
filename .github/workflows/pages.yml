@@ -1,0 +1,52 @@
+name: Publish calendar
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '2-59/5 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify and unpack source
+        run: |
+          echo "67476806518f5a49ebbf1c6c44314e5f566d99099381467dfdd2687b8746ec9e  bizreq-event-calendar-source.zip" | sha256sum --check
+          unzip -q bizreq-event-calendar-source.zip -d app
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile --ignore-scripts --config.strict-dep-builds=false
+        working-directory: app
+      - run: pnpm test
+        working-directory: app
+      - run: pnpm run refresh
+        working-directory: app
+      - run: pnpm run build
+        working-directory: app
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: app/dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
